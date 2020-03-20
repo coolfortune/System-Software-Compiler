@@ -5,48 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define norw 15	/* number of reserved words */
-#define imax 32767 /* maximum integer value */
-#define cmax 11	/* maximum number of chars for idents */
-#define nestmax 5  /* maximum depth of block nesting */
-#define strmax 256 /* maximum length of strings */
-
-typedef enum
-{
-	nulsym = 1,
-	idsym,
-	numbersym,
-	plussym,
-	minussym,
-	multsym,
-	slashsym,
-	oddsym,
-	eqlsym,
-	neqsym,
-	lessym,
-	leqsym,
-	gtrsym,
-	geqsym,
-	lparentsym,
-	rparentsym,
-	commasym,
-	semicolonsym,
-	periodsym,
-	becomessym,
-	beginsym,
-	endsym,
-	ifsym,
-	thensym,
-	whilesym,
-	dosym,
-	callsym,
-	constsym,
-	varsym,
-	procsym,
-	writesym,
-	readsym,
-	elsesym,
-} token_type;
+#include "parser.h"
 
 /* list of reserved word names */
 char *word[] = {"null", "begin", "call", "const", "do", "else", "end", "if", "odd", "procedure", "read", "then", "var", "while", "write"};
@@ -54,12 +13,13 @@ char *word[] = {"null", "begin", "call", "const", "do", "else", "end", "if", "od
 /* internal representation of reserved words */
 int wsym[] = {nulsym, beginsym, callsym, constsym, dosym, elsesym, endsym, ifsym, oddsym, procsym, readsym, thensym, varsym, whilesym, writesym};
 
+
 int convert(char c)
 {
 	return c - '0';
 }
 
-int searchToken(char* lex)
+int searchToken(char *lex)
 {
 	for(int i = 0; i < norw; i++)
 	{
@@ -71,8 +31,6 @@ int searchToken(char* lex)
 
 	return idsym;
 }
-
-void comments();
 
 int main(int argc, char **argv)
 {
@@ -101,17 +59,6 @@ int main(int argc, char **argv)
 	ssym['$'] = leqsym;
 	ssym['%'] = geqsym;
 	ssym[';'] = semicolonsym;
-
-	// Struct for Symbol Table
-	typedef struct
-	{
-		int kind;	  	// const = 1, var = 2, proc = 3
-		char name[10]; 	// name up to 11 chars
-		int val;	   	// number (ASCII value)
-		int level;	 	// L  level
-		int adr;	   	// M  address
-	} namerecord_t;
-
 
 	// File initialization
 	char *fileName = argv[1];
@@ -152,6 +99,10 @@ int main(int argc, char **argv)
 	rewind(file);	// Rewinds file pointer to the beginning
 	char c;
 
+	lexer *lex_table = (lexer*) calloc(256, sizeof(lexer));
+
+	int lp = 0;
+
 	while (!feof(file))
 	{
 		c = fgetc(file);
@@ -161,6 +112,7 @@ int main(int argc, char **argv)
 			// Ignores comments until closing symbols or returns error if symbol is missing
 			case '/':
 			{
+				char d = c;
 				c = fgetc(file);
 				if(c == '*')
 				{
@@ -190,6 +142,28 @@ int main(int argc, char **argv)
 						}
 					}
 				}
+				else
+				{
+					int token = ssym[d];
+
+					if(token != 0)
+					{
+						fprintf(out_file, "%c\t\t\t%d\n", d, token);
+
+						lex_table[lp].lexeme[0] = d;
+						strcat(lex_table[lp].lexeme, "         ");
+
+						lex_table[lp].token = token;
+						lp++;
+
+						char strbuf[3];
+						sprintf(strbuf, "%d", token);
+						strcat(buf2, strbuf);
+						strcat(buf2, " ");
+					}
+
+					ungetc(c, file);
+				}
 			}
 			// Values case
 			// Reads digits until another symbol is encountered,
@@ -201,7 +175,7 @@ int main(int argc, char **argv)
 					break;
 
 				int value = convert(c);
-				char* lex = calloc(nestmax, sizeof(char));
+				char* lex = (char*) calloc(nestmax, sizeof(char));
 				int count = 1;
 				while(isalnum(c))
 				{
@@ -226,9 +200,15 @@ int main(int argc, char **argv)
 
 				fprintf(out_file, "%-11s\t%d\n", lex, numbersym);
 
+				strcpy(lex_table[lp].lexeme, lex);
+				lex_table[lp].token = numbersym;
+				lp++;
+
 				char strbuf[2];
 				sprintf(strbuf, "%d", numbersym);
 				strcat(buf2, strbuf);
+				strcat(buf2, " ");
+				strcat(buf2, lex);
 				strcat(buf2, " ");
 
 				free(lex);
@@ -258,6 +238,10 @@ int main(int argc, char **argv)
 
 				fprintf(out_file, "%-11s\t%d\n", lex, token);
 				
+				strcpy(lex_table[lp].lexeme, lex);
+				lex_table[lp].token = token;
+				lp++;
+
 				char strbuf[2];
 				sprintf(strbuf, "%d", token);
 				strcat(buf2, strbuf);
@@ -276,7 +260,7 @@ int main(int argc, char **argv)
 			// is not followed by an equals sign
 			case ':':
 			{
-				char walrus[2];
+				char *walrus = (char*) calloc(2, sizeof(char));
 				walrus[0] = c;
 
 				c = fgetc(file);
@@ -287,6 +271,10 @@ int main(int argc, char **argv)
 					putc(walrus[0], out_file);
 					putc(walrus[1], out_file);
 					fprintf(out_file, "\t\t\t%d\n", becomessym);
+
+					strcpy(lex_table[lp].lexeme, walrus);
+					lex_table[lp].token = becomessym;
+					lp++;
 
 					char strbuf[3];
 					sprintf(strbuf, "%d", becomessym);
@@ -316,17 +304,30 @@ int main(int argc, char **argv)
 					comp[1] = c;
 					token = leqsym;
 					fprintf(out_file, "%s\t\t\t%d\n", comp, token);
+
+					strcpy(lex_table[lp].lexeme, comp);
+					lex_table[lp].token = token;
+					lp++;
+
 				}
 				else if(c == '>')
 				{
 					comp[1] = c;
 					token = neqsym;
 					fprintf(out_file, "%s\t\t\t%d\n", comp, token);
+
+					strcpy(lex_table[lp].lexeme, comp);
+					lex_table[lp].token = token;
+					lp++;
 				}
 				else
 				{
 					ungetc(c, file);
 					fprintf(out_file, "%s\t\t\t%d\n", comp, token);
+
+					strcpy(lex_table[lp].lexeme, comp);
+					lex_table[lp].token = token;
+					lp++;
 				}
 					char strbuf[3];
 					sprintf(strbuf, "%d", token);
@@ -347,11 +348,19 @@ int main(int argc, char **argv)
 				{
 					comp[1] = c;
 					fprintf(out_file, "%s\t\t\t%d\n", comp, geqsym);
+
+					strcpy(lex_table[lp].lexeme, comp);
+					lex_table[lp].token = geqsym;
+					lp++;
 				}
 				else
 				{
 					ungetc(c, file);
 					fprintf(out_file, "%s\t\t\t%d\n", comp, gtrsym);
+
+					strcpy(lex_table[lp].lexeme, comp);
+					lex_table[lp].token = gtrsym;
+					lp++;
 				}
 
 				break;
@@ -376,6 +385,12 @@ int main(int argc, char **argv)
 				{
 					fprintf(out_file, "%c\t\t\t%d\n", c, token);
 
+					lex_table[lp].lexeme[0] = c;
+					strcat(lex_table[lp].lexeme, "         ");
+
+					lex_table[lp].token = token;
+					lp++;
+
 					char strbuf[3];
 					sprintf(strbuf, "%d", token);
 					strcat(buf2, strbuf);
@@ -393,9 +408,11 @@ int main(int argc, char **argv)
 		}
 	}
 	// Prints Lexeme List
-	fprintf(out_file, "\nLexeme List:\n");
-	fprintf(out_file, "%s\n", buf2);
-	free(buf2);
+	for(int i = 0; i < lp; i++)
+		printf("%d. %-11s\t\t%d\n", i, lex_table[i].lexeme, lex_table[i].token);
+
+	parser(lex_table);
+	free(lex_table);
 
 	// Closes files
 	fclose(file);

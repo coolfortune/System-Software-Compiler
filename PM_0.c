@@ -1,19 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_STACK_HEIGHT 40
-#define MAX_CODE_LENGTH 200
-#define MAX_LEXI_LEVELS 3
-
-typedef struct{
-	int op; // opcode
-	int r;  // register
-	int l;  // L
-	int m;  // M
-} Instruction;
+#include "parser.h"
 
 
-void printInstructions(Instruction** insArray)
+void printInstructions(instruction** insArray)
 {
 	for(int i = 0; i < MAX_CODE_LENGTH; i++)
 	{
@@ -26,7 +17,7 @@ void printInstructions(Instruction** insArray)
 		return;
 }
 
-Instruction** initInstructions(char* file)
+instruction** initInstructions(char* file)
 {
     int op, r, l, m = 0;
 	int i = 0;
@@ -39,11 +30,11 @@ Instruction** initInstructions(char* file)
     if (inputFile == NULL)
         return NULL;
 
-    Instruction** insArray = calloc(MAX_CODE_LENGTH, sizeof(Instruction*));
+    instruction** insArray = calloc(MAX_CODE_LENGTH, sizeof(instruction*));
 
     while (fscanf(inputFile, "%d %d %d %d", &op, &r, &l, &m) != EOF)
     {
-        insArray[i] = malloc(sizeof(Instruction*));
+        insArray[i] = malloc(sizeof(instruction*));
         insArray[i]->op = op;
         insArray[i]->r = r;
         insArray[i]->l = l;
@@ -56,9 +47,9 @@ Instruction** initInstructions(char* file)
     return insArray;
 }
 
-Instruction* insFetch(int* pc, Instruction** code)
+instruction* insFetch(int* pc, instruction** code)
 {
-	Instruction* instruction = code[*pc];
+	instruction* instruction = code[*pc];
 
 	if (instruction->op == 7)
 	{
@@ -96,7 +87,7 @@ void printStack(int* dataStack)
 	}
 }
 
-void printCommand(int line, Instruction* instruction, char** op)
+void printCommand(int line, instruction* instruction, char** op)
 {
 	int index = instruction->op;
 
@@ -121,7 +112,7 @@ void printExecutionHeader(int* pc, int* bp, int* sp, int* registers, int* stack)
 	printf("\n---------------------------------------------------------------------------\n");
 }
 
-void printExecution(int* pc, int* bp, int* sp, int* registers, int* dataStack, Instruction* commands,
+void printExecution(int* pc, int* bp, int* sp, int* registers, int* dataStack, instruction* commands,
 					int breakLine)
 {
 	int j = 0;
@@ -158,7 +149,7 @@ int main(int argc, char** argv)
 
 	int* registers = calloc(8, sizeof(int));
 	int* stack = calloc(MAX_STACK_HEIGHT, sizeof(int));
-	Instruction** insArray = initInstructions(input);
+	instruction** insArray = initInstructions(input);
 
 	int sp = 0;
 	int	pc = 0;
@@ -177,7 +168,7 @@ int main(int argc, char** argv)
 	// Run Program
 	while(halt == 0)
 	{	
-		Instruction* curInstruction = insFetch(&pc, insArray);
+		instruction* curInstruction = insFetch(&pc, insArray);
 
 		switch(curInstruction->op)
 		{
